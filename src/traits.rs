@@ -6,7 +6,7 @@ use crate::Envelope;
 pub trait AuthKeyExchange {
     type PrivateKey: Serialize + for<'a> Deserialize<'a>;
     type PublicKey: Serialize + for<'a> Deserialize<'a> + Clone;
-    type EphemeralKey;
+    type EphemeralKey: Serialize + for<'a> Deserialize<'a>;
     type Message: Serialize + for<'a> Deserialize<'a> + Clone;
 
     const SHARED_LENGTH: usize;
@@ -20,14 +20,14 @@ pub trait AuthKeyExchange {
         bid: &str, bpk: &Self::PublicKey,
         ek: &Self::EphemeralKey,
         m: &Self::Message
-    ) -> bool;
+    ) -> Result<(), ()>;
     fn dec(
         sharedkey: &mut [u8],
         bid: &str, bsk: &Self::PrivateKey,
         aid: &str, apk: &Self::PublicKey,
         ek: &Self::EphemeralKey,
         m: &Self::Message
-    ) -> bool;
+    ) -> Result<(), ()>;
 }
 
 pub trait AuthEnc<AKE: AuthKeyExchange> {

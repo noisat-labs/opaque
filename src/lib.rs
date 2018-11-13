@@ -96,21 +96,17 @@ impl<AKE: AuthKeyExchange> Server<AKE> {
         let ek = AKE::generate_ephemeral(rng);
         let resp = oprf::response(&ku, challenge);
 
-        if AKE::dec(
+        AKE::dec(
             sharedkey,
             &self.name, &self.sk,
             username, &pubu,
             &ek,
             &msg
-        ) {
-            Ok(ServerLoginMessage {
-                vu: ku.to_public(),
-                msg: AKE::to_message(&ek),
-                resp, envelope
-            })
-        } else {
-            Err(())
-        }
+        ).map(|_| ServerLoginMessage {
+            vu: ku.to_public(),
+            msg: AKE::to_message(&ek),
+            resp, envelope
+        })
     }
 }
 
@@ -175,7 +171,7 @@ where
         servername: &str,
         ServerLoginMessage { vu, msg, resp, envelope }: ServerLoginMessage<AKE>,
         sharedkey: &mut [u8]
-    ) -> Result<bool, ()>
+    ) -> Result<(), ()>
     where
          AEAD: AuthEnc<AKE>,
          PH: PwHash
@@ -187,12 +183,12 @@ where
         PH::pwhash(username.as_bytes(), &rwd, &mut rwdk);
         let envu = AEAD::open(&rwdk, &envelope)?;
 
-        Ok(AKE::enc(
+        AKE::enc(
             sharedkey,
             username, &envu.privu,
             servername, &envu.pubs,
             &ek,
             &msg
-        ))
+        )
     }
 }

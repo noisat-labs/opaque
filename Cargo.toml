@@ -12,5 +12,10 @@ serde = "*"
 serde_derive = "*"
 
 [dev-dependencies]
+arrayref = "0.3"
+oake = { path = "../oake" }
+norx = "*"
+scrypt = "*"
+argon2rs = "*"
 sha3 = "*"
 serde_cbor = "*"
