@@ -7,4 +7,10 @@ edition = "2018"
 [dependencies]
 rand = "*"
 digest = "*"
-curve25519-dalek = "1.0.0-pre.0"
+curve25519-dalek = { version = "1.0.0-pre.0", features = [ "serde" ] }
+serde = "*"
+serde_derive = "*"
+
+[dev-dependencies]
+sha3 = "*"
+serde_cbor = "*"
