@@ -23,5 +23,6 @@ fn test_opaque() {
     let msg = server.login(&mut rng, "user", &userdata, msg, &mut rwds).unwrap();
     user.next("user", "server", msg, &mut rwdu).unwrap();
 
+    assert_ne!(rwds, [0; 32]);
     assert_eq!(rwds, rwdu);
 }

@@ -71,17 +71,18 @@ impl AuthKeyExchange for Oake {
 pub struct NorxCbor;
 
 impl<AKE: AuthKeyExchange> AuthEnc<AKE> for NorxCbor {
-    const KEY_LENGTH: usize = norx::constant::KEY_LENGTH + norx::constant::NONCE_LENGTH;
+    const KEY_LENGTH: usize = norx::constant::KEY_LENGTH;
 
-    fn seal(key: &[u8], input: &Envelope<AKE>) -> Vec<u8> {
+    fn seal<R: Rng + CryptoRng>(mut rng: R, key: &[u8], input: &Envelope<AKE>) -> Vec<u8> {
         use norx::constant::{ KEY_LENGTH, NONCE_LENGTH, TAG_LENGTH, BLOCK_LENGTH };
 
-        let (key, nonce) = key.split_at(KEY_LENGTH);
-        let key = array_ref!(key, 0, KEY_LENGTH);
-        let nonce = array_ref!(nonce, 0, NONCE_LENGTH);
-
         let m = serde_cbor::to_vec(input).unwrap();
-        let mut c = vec![0; m.len() + TAG_LENGTH];
+
+        let key = array_ref!(key, 0, KEY_LENGTH);
+        let mut output = vec![0; NONCE_LENGTH + m.len() + TAG_LENGTH];
+        let (nonce, c) = output.split_at_mut(NONCE_LENGTH);
+        rng.fill(nonce);
+        let nonce = array_ref!(nonce, 0, NONCE_LENGTH);
 
         let (m1, m2) = m.split_at(m.len() - m.len() % BLOCK_LENGTH);
         let (c1, c2) = c.split_at_mut(m1.len());
@@ -97,18 +98,17 @@ impl<AKE: AuthKeyExchange> AuthEnc<AKE> for NorxCbor {
         );
         process.finalize(key, &[], m2, c2);
 
-        c
+        output
     }
 
     fn open(key: &[u8], input: &[u8]) -> Result<Envelope<AKE>, ()> {
         use norx::constant::{ KEY_LENGTH, NONCE_LENGTH, TAG_LENGTH, BLOCK_LENGTH };
 
-        let (key, nonce) = key.split_at(KEY_LENGTH);
         let key = array_ref!(key, 0, KEY_LENGTH);
+        let (nonce, c) = input.split_at(NONCE_LENGTH);
         let nonce = array_ref!(nonce, 0, NONCE_LENGTH);
 
-        let c = input;
-        let m_len = input.len() - TAG_LENGTH;
+        let m_len = c.len() - TAG_LENGTH;
         let mut m = vec![0; m_len];
         let (m1, m2) = m.split_at_mut(m_len - m_len % BLOCK_LENGTH);
         let (c1, c2) = c.split_at(m1.len());

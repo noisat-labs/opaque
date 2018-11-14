@@ -33,7 +33,7 @@ pub trait AuthKeyExchange {
 pub trait AuthEnc<AKE: AuthKeyExchange> {
     const KEY_LENGTH: usize;
 
-    fn seal(key: &[u8], input: &Envelope<AKE>) -> Vec<u8>;
+    fn seal<R: Rng + CryptoRng>(r: R, key: &[u8], input: &Envelope<AKE>) -> Vec<u8>;
     fn open(key: &[u8], input: &[u8]) -> Result<Envelope<AKE>, ()>;
 }
 

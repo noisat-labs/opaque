@@ -126,13 +126,13 @@ where
 
     pub fn next<R: Rng + CryptoRng>(
         self,
-        rng: R,
+        mut rng: R,
         username: &str,
         pubs: AKE::PublicKey,
         ServerRegisterMessage { vu, resp }: ServerRegisterMessage
     ) -> UserEnvelope<AKE> {
         let User(_, Register(process)) = self;
-        let (privu, pubu) = AKE::keypair(rng);
+        let (privu, pubu) = AKE::keypair(&mut rng);
 
         let rwd = oprf::f(&vu, process, resp);
         let mut rwdk = vec![0; AE::KEY_LENGTH];
@@ -141,7 +141,7 @@ where
         let envu = Envelope { privu, pubu, pubs, vu };
 
         UserEnvelope {
-            envelope: AE::seal(&rwdk, &envu),
+            envelope: AE::seal(&mut rng, &rwdk, &envu),
             pubu: envu.pubu
         }
     }
