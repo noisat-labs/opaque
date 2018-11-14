@@ -5,17 +5,17 @@ authors = ["quininer <quininer@live.com>"]
 edition = "2018"
 
 [dependencies]
-rand = "*"
-digest = "*"
+rand = "0.5"
+digest = "0.8"
 curve25519-dalek = { version = "1.0.0-pre.0", features = [ "serde" ] }
-serde = "*"
-serde_derive = "*"
+serde = "1"
+serde_derive = "1"
 
 [dev-dependencies]
 arrayref = "0.3"
-oake = { path = "../oake" }
-norx = "*"
-scrypt = "*"
-argon2rs = "*"
-sha3 = "*"
-serde_cbor = "*"
+# oake = { path = "../oake" }
+oake = { git = "https://github.com/noisat-labs/oake" }
+norx = "0.1"
+scrypt = "0.2"
+sha3 = "0.8"
+serde_cbor = "0.9"

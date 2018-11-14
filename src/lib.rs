@@ -1,6 +1,7 @@
 pub mod oprf;
 pub mod traits;
 
+use std::marker::PhantomData;
 use rand::{ Rng, CryptoRng };
 use digest::Digest;
 use digest::generic_array::typenum::U64;
@@ -17,7 +18,7 @@ pub struct Server<AKE: AuthKeyExchange> {
 #[derive(Serialize, Deserialize)]
 pub struct UserData<T>(pub oprf::PrivateKey, pub T);
 
-pub struct User<T>(T);
+pub struct User<AKE, AE, PH, T>(PhantomData<(AKE, AE, PH)>, T);
 pub struct Register<H>(oprf::Process<H>);
 pub struct Login<AKE: AuthKeyExchange, H>(oprf::Process<H>, AKE::EphemeralKey);
 
@@ -87,101 +88,96 @@ impl<AKE: AuthKeyExchange> Server<AKE> {
         &self,
         rng: R,
         username: &str,
-        UserData(ku, UserEnvelope { envelope, pubu }): UserData<UserEnvelope<AKE>>,
+        UserData(ku, UserEnvelope { envelope, pubu }): &UserData<UserEnvelope<AKE>>,
         UserLoginMessage { msg, challenge }: UserLoginMessage<AKE>,
         sharedkey: &mut [u8]
     )
         -> Result<ServerLoginMessage<AKE>, ()>
     {
         let ek = AKE::generate_ephemeral(rng);
-        let resp = oprf::response(&ku, challenge);
+        let resp = oprf::response(ku, challenge);
 
         AKE::dec(
             sharedkey,
             &self.name, &self.sk,
-            username, &pubu,
+            username, pubu,
             &ek,
             &msg
         ).map(|_| ServerLoginMessage {
             vu: ku.to_public(),
             msg: AKE::to_message(&ek),
-            resp, envelope
+            envelope: envelope.clone(),
+            resp
         })
     }
 }
 
-impl<H> User<Register<H>>
+impl<AKE, AE, PH, H> User<AKE, AE, PH, Register<H>>
 where
+    AKE: AuthKeyExchange,
+    AE: AuthEnc<AKE>,
+    PH: PwHash,
     H: Digest<OutputSize = U64> + Default,
 {
     pub fn start<R: Rng + CryptoRng>(rng: R, pw: &[u8]) -> (Self, UserRegisterMessage) {
         let (process, challenge) = oprf::challenge::<H, _>(rng, pw);
-        (User(Register(process)), UserRegisterMessage { challenge })
+        (User(PhantomData, Register(process)), UserRegisterMessage { challenge })
     }
 
-    pub fn next<AKE, AEAD, PH, R>(
+    pub fn next<R: Rng + CryptoRng>(
         self,
         rng: R,
         username: &str,
         pubs: AKE::PublicKey,
         ServerRegisterMessage { vu, resp }: ServerRegisterMessage
-    )
-        -> UserEnvelope<AKE>
-    where
-        AKE: AuthKeyExchange,
-        AEAD: AuthEnc<AKE>,
-        PH: PwHash,
-        R: Rng + CryptoRng
-    {
-        let User(Register(process)) = self;
+    ) -> UserEnvelope<AKE> {
+        let User(_, Register(process)) = self;
         let (privu, pubu) = AKE::keypair(rng);
 
         let rwd = oprf::f(&vu, process, resp);
-        let mut rwdk = vec![0; AEAD::KEY_LENGTH];
+        let mut rwdk = vec![0; AE::KEY_LENGTH];
         PH::pwhash(username.as_bytes(), &rwd, &mut rwdk);
 
         let envu = Envelope { privu, pubu, pubs, vu };
 
         UserEnvelope {
-            envelope: AEAD::seal(&rwdk, &envu),
+            envelope: AE::seal(&rwdk, &envu),
             pubu: envu.pubu
         }
     }
 }
 
-impl<AKE, H> User<Login<AKE, H>>
+impl<AKE, AE, PH, H> User<AKE, AE, PH, Login<AKE, H>>
 where
     AKE: AuthKeyExchange,
+    AE: AuthEnc<AKE>,
+    PH: PwHash,
     H: Digest<OutputSize = U64> + Default,
 {
     pub fn start<R: Rng + CryptoRng>(mut rng: R, pw: &[u8])
-        -> (User<Login<AKE, H>>, UserLoginMessage<AKE>)
+        -> (User<AKE, AE, PH, Login<AKE, H>>, UserLoginMessage<AKE>)
     {
         let (process, challenge) = oprf::challenge::<H, _>(&mut rng, pw);
 
         let ek = AKE::generate_ephemeral(&mut rng);
         let msg = AKE::to_message(&ek);
 
-        (User(Login(process, ek)), UserLoginMessage { msg, challenge })
+        (User(PhantomData, Login(process, ek)), UserLoginMessage { msg, challenge })
     }
 
-    pub fn next<AEAD, PH>(
+    pub fn next(
         self,
         username: &str,
         servername: &str,
         ServerLoginMessage { vu, msg, resp, envelope }: ServerLoginMessage<AKE>,
         sharedkey: &mut [u8]
-    ) -> Result<(), ()>
-    where
-         AEAD: AuthEnc<AKE>,
-         PH: PwHash
-    {
-        let User(Login(process, ek)) = self;
+    ) -> Result<(), ()> {
+        let User(_, Login(process, ek)) = self;
 
         let rwd = oprf::f(&vu, process, resp);
-        let mut rwdk = vec![0; AEAD::KEY_LENGTH];
+        let mut rwdk = vec![0; AE::KEY_LENGTH];
         PH::pwhash(username.as_bytes(), &rwd, &mut rwdk);
-        let envu = AEAD::open(&rwdk, &envelope)?;
+        let envu = AE::open(&rwdk, &envelope)?;
 
         AKE::enc(
             sharedkey,
