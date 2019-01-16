@@ -1,13 +1,13 @@
 use rand::{ Rng, CryptoRng };
-use serde::{ Serialize, Deserialize };
+use serde::{ Serialize, de::DeserializeOwned };
 use crate::Envelope;
 
 
 pub trait AuthKeyExchange {
-    type PrivateKey: Serialize + for<'a> Deserialize<'a>;
-    type PublicKey: Serialize + for<'a> Deserialize<'a> + Clone;
-    type EphemeralKey: Serialize + for<'a> Deserialize<'a>;
-    type Message: Serialize + for<'a> Deserialize<'a> + Clone;
+    type PrivateKey: Serialize + DeserializeOwned;
+    type PublicKey: Serialize + DeserializeOwned + Clone;
+    type EphemeralKey: Serialize + DeserializeOwned;
+    type Message: Serialize + DeserializeOwned + Clone;
 
     const SHARED_LENGTH: usize;
 
